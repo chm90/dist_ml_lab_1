@@ -13,20 +13,29 @@ import org.apache.spark.sql.Row
 import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.ml.linalg.Matrices
 import org.apache.spark.mllib.evaluation.RegressionMetrics
+import math.sqrt
 
 case class Instance(label: Double, features: Vector)
 
 object Helper {
   def rmse(labelsAndPreds: RDD[(Double, Double)]): Double = {
-    ???
+    val sqErrs = labelsAndPreds.map{
+      case (label,pred) => {
+        val err = label - pred
+        err * err
+      }
+    }
+    sqrt(sqErrs.mean())
   }
 
   def predictOne(weights: Vector, features: Vector): Double = {
-    ???
+    VectorHelper.dot(weights, features)
   }
 
   def predict(weights: Vector, data: RDD[Instance]): RDD[(Double, Double)] = {
-    ???
+    data.map{
+      case Instance(label, features) => (label,predictOne(weights, features))
+    }
   }
 }
 
@@ -34,15 +43,15 @@ class MyLinearRegressionImpl(override val uid: String)
     extends MyLinearRegression[Vector, MyLinearRegressionImpl, MyLinearModelImpl] {
 
   def this() = this(Identifiable.randomUID("mylReg"))
-
+  
   override def copy(extra: ParamMap): MyLinearRegressionImpl = defaultCopy(extra)
 
   def gradientSummand(weights: Vector, lp: Instance): Vector = {
-    ???
+    VectorHelper.dot(lp.features,VectorHelper.dot(weights,lp.features) - lp.label)
   }
 
   def gradient(d: RDD[Instance], weights: Vector): Vector = {
-    ???
+    d.map(gradientSummand(weights, _)).reduce{case (v1, v2) => VectorHelper.sum(v1, v2)}
   }
 
   def linregGradientDescent(trainData: RDD[Instance], numIters: Int): (Vector, Array[Double]) = {
@@ -92,7 +101,6 @@ class MyLinearModelImpl(override val uid: String, val weights: Vector, val train
   override def copy(extra: ParamMap): MyLinearModelImpl = defaultCopy(extra)
 
   def predict(features: Vector): Double = {
-    println("Predicting")
     val prediction = Helper.predictOne(weights, features)
     prediction
   }
